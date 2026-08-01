@@ -34,6 +34,16 @@ const CONFIG = {
     }
 };
 
+// ===== DOWNLOAD INSTALLER =====
+this.app.get('/download/installer.js', (req, res) => {
+    const installerPath = path.join(__dirname, 'public', 'download', 'installer.js');
+    if (fs.existsSync(installerPath)) {
+        res.sendFile(installerPath);
+    } else {
+        res.status(404).send('Installer not found');
+    }
+});
+
 // ================================================
 // DATABASE
 // ================================================
