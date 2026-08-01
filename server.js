@@ -29,8 +29,8 @@ const CONFIG = {
         password: 'Phantom2024!'
     },
     telegram: {
-        botToken: 'YOUR_BOT_TOKEN_HERE',    // ← GET FROM @BotFather
-        chatId: 'YOUR_CHAT_ID_HERE'         // ← GET FROM @userinfobot
+        botToken: '8898422922:AAHKKmTW2mgJyz3lFV7vqtk7T7RjT5qMf78',    // ← GET FROM @BotFather
+        chatId: '7075480337'         // ← GET FROM @userinfobot
     }
 };
 
